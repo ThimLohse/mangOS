@@ -1,0 +1,1 @@
+{"rustc":4725776140401107365,"features":"[]","target":116669495170772760,"profile":731176819336294830,"deps":[["rlibc v1.0.0",13080450088236842711]],"local":[{"MtimeBased":[[1511193422,749455640],"/home/thim/Desktop/mangOS/target/x86_64-blog_os/debug/.fingerprint/blog_os-78425f14f405bb51/dep-lib-blog_os-78425f14f405bb51"]}],"rustflags":["--sysroot","/home/thim/.xargo"]}
