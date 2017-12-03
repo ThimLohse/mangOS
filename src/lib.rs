@@ -9,16 +9,66 @@ extern crate spin;
 extern crate multiboot2;
 
 #[macro_use]
+extern crate bitflags;
+
+#[macro_use]
 mod vga_buffer;
+mod memory;
+
 
 #[no_mangle]
 pub extern fn rust_main(multiboot_information_address: usize) {
-    // ATTENTION: we have a very small stack and no guard page
-
+    //Extra lines from github
+    use memory::FrameAllocator;
+    
     //clear screen
     vga_buffer::clear_screen();
 
-    //print all available memory areas
+    let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
+    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
+    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
+    
+    
+
+    //Calculate start and end addresses of our loaded kernel.
+    let kernel_start = elf_sections_tag.sections().map(|s| s.addr).min().unwrap();
+    let kernel_end = elf_sections_tag.sections().map(|s| s.addr + s.size).max().unwrap();
+
+    //Retrieve the multiboot information structure
+    let multiboot_start = multiboot_information_address;
+    let multiboot_end = multiboot_start + (boot_info.total_size as usize);
+
+    println!("kernel start: 0x{:x}, kernel end: 0x{:x}", kernel_start, kernel_end);
+    println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}",  multiboot_start, multiboot_end);
+    
+
+    
+ let mut frame_allocator = memory::AreaFrameAllocator::new(
+    kernel_start as usize, kernel_end as usize, multiboot_start,
+     multiboot_end, memory_map_tag.memory_areas());
+
+    for i in 0..{
+        if let None = frame_allocator.allocate_frame(){
+            println!("allocated {} frames", i);
+            break;
+        }
+    }
+
+
+    loop{}
+   
+
+
+}
+fn test(){
+    let p4 = unsafe{&*P4};
+    p4.next_table(42)
+        .and_then(|p3| p3.next_table(1337))
+        .and_then(|p2| p2.next_table(0xdeadbeaf))
+        .and_then(|p1| p1.next_table(0xcafebabe))
+}
+fn print_memory_locations(multiboot_information_address: usize ){
+      //print all available memory areas
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
     let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
 
@@ -33,9 +83,6 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     for section in elf_sections_tag.sections(){
         println!("    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}", section.addr, section.size, section.flags);
     }
-
-
-
 }
 fn print_evil_computer_init(){
        print!("initializing");
