@@ -1,4 +1,6 @@
-use memory::Frame; // needed later
+use memory::Frame;
+use multiboot2::ElfSection;
+
 //page entry
 pub struct Entry(u64);
 
@@ -26,6 +28,30 @@ impl Entry {
         self.0 = (frame.start_address() as u64) | flags.bits();
     }
 }
+
+impl EntryFlags{
+    pub fn from_elf_section_flags(section: &ElfSection) -> EntryFlags {
+        use multiboot2::{ELF_SECTION_ALLOCATED, ELF_SECTION_WRITABLE,
+            ELF_SECTION_EXECUTABLE};
+
+        let mut flags = EntryFlags::empty();
+
+        if section.flags().contains(ELF_SECTION_ALLOCATED) {
+            // section is loaded to memory
+            flags = flags | PRESENT;
+        }
+        if section.flags().contains(ELF_SECTION_WRITABLE) {
+            flags = flags | WRITABLE;
+        }
+        if !section.flags().contains(ELF_SECTION_EXECUTABLE) {
+            flags = flags | NO_EXECUTE;
+        }
+
+        flags
+    }
+
+}
+
 //bitflags for page
 bitflags! {
     pub struct EntryFlags: u64 {

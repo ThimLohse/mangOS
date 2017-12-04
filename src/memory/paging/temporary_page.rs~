@@ -1,0 +1,5 @@
+use super::Page;
+
+pub stryct TemporaryPage{
+    page: Page,
+}

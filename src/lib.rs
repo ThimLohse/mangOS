@@ -18,12 +18,15 @@ mod memory;
 
 
 #[no_mangle]
-pub extern fn rust_main(multiboot_information_address: usize) {
+pub extern "C" fn rust_main(multiboot_information_address: usize) {
+    //ATTENTION: we have a very small stack and no guard page
+    
     //Extra lines from github
     use memory::FrameAllocator;
     
     //clear screen
     vga_buffer::clear_screen();
+    println!("Hello World{}", "!");
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
     let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
@@ -43,12 +46,23 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     
 
     
- let mut frame_allocator = memory::AreaFrameAllocator::new(
-    kernel_start as usize, kernel_end as usize, multiboot_start,
-     multiboot_end, memory_map_tag.memory_areas());
+     let mut frame_allocator = memory::AreaFrameAllocator::new(
+        kernel_start as usize, kernel_end as usize, multiboot_start,
+         multiboot_end, memory_map_tag.memory_areas());
 
+    
     //call function to test paging
-    memory::test_paging(&mut frame_allocator);
+    //memory::test_paging(&mut frame_allocator);
+
+    //test remapping the kernel (Enable NoExecute bit before to avoid page fault)
+    enable_nxe_bit();
+    enable_write_protect_bit();
+    memory::remap_the_kernel(&mut frame_allocator, boot_info);
+
+    //new : try to allocate a frame -> should cause page fault as the AreaFrameAllocator uses the memory map of the Multiboot information structure, but we did not map the Multibbot structure.
+    frame_allocator.allocate_frame();
+    
+    println!("It did not crash!");
 
 
     loop{}
@@ -56,23 +70,21 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
 
 }
-fn print_memory_locations(multiboot_information_address: usize ){
-      //print all available memory areas
-    let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
+fn enable_write_protect_bit() {
+    use x86_64::registers::control_regs::{cr0, cr0_write, Cr0};
 
-    println!("memory areas:");
-    for area in memory_map_tag.memory_areas(){
-        println!("    start: 0x{:x}, length: 0x{:x}", area.base_addr, area.length);
-    }
+    unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
+}
+fn enable_nxe_bit(){
+    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
 
-    //read and print the sections of our kernel ELF file
-    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
-    println!("kernel sections:");
-    for section in elf_sections_tag.sections(){
-        println!("    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}", section.addr, section.size, section.flags);
+    let nxe_bit = 1 << 11;
+    unsafe {
+        let efer = rdmsr(IA32_EFER);
+        wrmsr(IA32_EFER, efer | nxe_bit);
     }
 }
+
 fn print_evil_computer_init(){
        print!("initializing");
     let mut count = 0u32;
@@ -103,37 +115,6 @@ fn print_evil_computer_init(){
 
 loop{}
 }
-fn test_printing_functions(){
-
-    //Use to print using the writer implementation in module vga_buffer
-    vga_buffer::print_something();
-
-
-    let hello = b"Hello World!";
-    let color_byte = 0x1f; // white foreground, blue background
-
-    let mut hello_colored = [color_byte; 24];
-    for (i, char_byte) in hello.into_iter().enumerate() {
-    hello_colored[i*2] = *char_byte;
-}
-
-	// write `Hello World!` to the center of the VGA text buffer
-	let buffer_ptr = (0xb8000 + 1988) as *mut _;
-    unsafe { *buffer_ptr = hello_colored };
-
-      // println!("{}", { println!("inner"); "outer" });
-
-   //comment away for testing function
-   //test_printing_function();
-/*
-   importing write traits to use its funcitons
-   use core::fmt::Write;
-   vga_buffer::WRITER.lock().write_str("Hello again");
-   write!(vga_buffer::WRITER.lock(), ", some numbers: {}{}", 42, 1.1337);
-*/
-    loop{}
-}
-
 #[lang = "eh_personality"] extern fn eh_personality() {}
 #[lang = "panic_fmt"] #[no_mangle]
 pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &'static str, line: u32) -> ! {
