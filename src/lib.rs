@@ -10,6 +10,7 @@ extern crate multiboot2;
 
 #[macro_use]
 extern crate bitflags;
+extern crate x86_64;
 
 #[macro_use]
 mod vga_buffer;
@@ -27,8 +28,6 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
     let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
     let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
-    
-    
 
     //Calculate start and end addresses of our loaded kernel.
     let kernel_start = elf_sections_tag.sections().map(|s| s.addr).min().unwrap();
@@ -40,6 +39,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     println!("kernel start: 0x{:x}, kernel end: 0x{:x}", kernel_start, kernel_end);
     println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}",  multiboot_start, multiboot_end);
+    println!("");
     
 
     
@@ -47,25 +47,14 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     kernel_start as usize, kernel_end as usize, multiboot_start,
      multiboot_end, memory_map_tag.memory_areas());
 
-    for i in 0..{
-        if let None = frame_allocator.allocate_frame(){
-            println!("allocated {} frames", i);
-            break;
-        }
-    }
+    //call function to test paging
+    memory::test_paging(&mut frame_allocator);
 
 
     loop{}
    
 
 
-}
-fn test(){
-    let p4 = unsafe{&*P4};
-    p4.next_table(42)
-        .and_then(|p3| p3.next_table(1337))
-        .and_then(|p2| p2.next_table(0xdeadbeaf))
-        .and_then(|p1| p1.next_table(0xcafebabe))
 }
 fn print_memory_locations(multiboot_information_address: usize ){
       //print all available memory areas

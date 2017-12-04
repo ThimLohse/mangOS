@@ -5,14 +5,14 @@ use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 
 
-pub const P4: *mut Table = 0xffffffff_fffff000 as *mut _;
+pub const P4: *mut Table<Level4> = 0xffffffff_fffff000 as *mut _;
 
 pub struct Table<L: TableLevel> {
     entries: [Entry; ENTRY_COUNT],
     level: PhantomData<L>,
 }
 
-impl<L> Table<L> where L: TableLevel
+impl<L> Table<L> where L: TableLevel,
 {
     //a method that sets all entries to unused
     //Needed  when creating  new page tables in the future
@@ -24,7 +24,7 @@ impl<L> Table<L> where L: TableLevel
     
 }
 
-impl<L> Table<L> where L: HierarchicalLevel
+impl<L> Table<L> where L: HierarchicalLevel,
 {
     fn next_table_address(&self, index: usize) -> Option<usize> {
         let entry_flags = self[index].flags();
@@ -48,7 +48,7 @@ impl<L> Table<L> where L: HierarchicalLevel
                             index: usize,
                             allocator: &mut A)
                             -> &mut Table<L::NextLevel>
-    where A: FrameAllocator
+    where A: FrameAllocator,
     {
         if self.next_table(index).is_none() {
         assert!(!self.entries[index].flags().contains(HUGE_PAGE),
@@ -68,7 +68,7 @@ impl<L> Table<L> where L: HierarchicalLevel
 //To make the Table indexable itself, we can implement the Index and IndexMut traits
 
 
-impl Index<usize> for Table<L> where L: TableLevel {
+impl<L> Index<usize> for Table<L> where L: TableLevel, {
     type Output = Entry;
 
     fn index(&self, index: usize) -> &Entry {
@@ -76,7 +76,7 @@ impl Index<usize> for Table<L> where L: TableLevel {
     }
 }
 
-impl IndexMut<usize> for Table<L> where L: TableLevel {
+impl<L> IndexMut<usize> for Table<L> where L: TableLevel, {
     fn index_mut(&mut self, index: usize) -> &mut Entry {
         &mut self.entries[index]
     }
