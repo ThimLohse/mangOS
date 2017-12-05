@@ -19,13 +19,16 @@ extern crate bitflags;
 extern crate x86_64;
 #[macro_use]
 extern crate once;
+extern crate linked_list_allocator;
 
 #[macro_use]
 mod vga_buffer;
 mod memory;
 
 use memory::FrameAllocator;
-use memory::heap_allocator::BumpAllocator;
+
+//This is probably not needed
+//use memory::heap_allocator::BumpAllocator;
 
 
 
@@ -43,40 +46,18 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     enable_nxe_bit();
     enable_write_protect_bit();
 
-    ///FOLLOWING CAN BE REMOVED WHEN INIT-FUNCTION WORKS
-    /*
-    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
-    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
-
-    //Calculate start and end addresses of our loaded kernel.
-    let kernel_start = elf_sections_tag.sections().map(|s| s.addr).min().unwrap();
-    let kernel_end = elf_sections_tag.sections().map(|s| s.addr + s.size).max().unwrap();
-
-    //Retrieve the multiboot information structure
-    let multiboot_start = multiboot_information_address;
-    let multiboot_end = multiboot_start + (boot_info.total_size as usize);
-
-    println!("kernel start: 0x{:x}, kernel end: 0x{:x}", kernel_start, kernel_end);
-    println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}",  multiboot_start, multiboot_end);
-    println!("");
-*/
 
     //set up guard page and map the heap pages
     memory::init(boot_info);
 
-    
-    //Test Remapping the kernel
-    /*
-    let mut frame_allocator = memory::AreaFrameAllocator::new(
-        kernel_start as usize, kernel_end as usize, multiboot_start,
-         multiboot_end, memory_map_tag.memory_areas());
-    memory::remap_the_kernel(&mut frame_allocator, boot_info);
-    */
 
-    //call function to test paging
-    //memory::test_paging(&mut frame_allocator);
-    //frame_allocator.allocate_frame();
+    // initialize the heap allocator
+    unsafe{
+        HEAP_ALLOCATOR.lock().init(HEAP_START, HEAP_START + HEAP_SIZE);
+    }
 
+    println!("");
+    println!("");
 
     //Test out the allocator
     use alloc::boxed::Box;
@@ -92,11 +73,15 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     }
     
     
-    println!("It did not crash!");
 
+    println!("\n");
+    println!("Starting allocating and deallocating  space on the heap");
     for i in 0..10000 {
-    format!("Some String");
-}
+        
+        format!("Some String");
+    }
+    println!("Finished");
+    println!("It did not crash!");
 
 
     loop{}
@@ -159,11 +144,11 @@ pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &'static str, line: u32
 
 
 //Public constants for the heapallocator
-
 pub const HEAP_START: usize = 0o_000_001_000_000_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 
+use linked_list_allocator::LockedHeap;
+
 #[global_allocator]
-static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START,
-    HEAP_START + HEAP_SIZE);
+static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 

@@ -1,0 +1,1 @@
+{"rustc":4725776140401107365,"features":"[]","target":2610725611980362818,"profile":731176819336294830,"deps":[["spin v0.4.6",4892201460047612666]],"local":[{"Precalculated":"0.4.2"}],"rustflags":["--sysroot","/home/thim/.xargo"]}
