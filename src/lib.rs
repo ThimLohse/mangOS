@@ -14,18 +14,18 @@ extern crate rlibc;
 extern crate volatile;
 extern crate spin;
 extern crate multiboot2;
-
 #[macro_use]
 extern crate bitflags;
 extern crate x86_64;
-
-
+#[macro_use]
+extern crate once;
 
 #[macro_use]
 mod vga_buffer;
 mod memory;
 
 use memory::FrameAllocator;
+use memory::heap_allocator::BumpAllocator;
 
 
 
@@ -40,7 +40,11 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     println!("Hello World{}", "!");
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-    
+    enable_nxe_bit();
+    enable_write_protect_bit();
+
+    ///FOLLOWING CAN BE REMOVED WHEN INIT-FUNCTION WORKS
+    /*
     let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
     let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
 
@@ -55,31 +59,44 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     println!("kernel start: 0x{:x}, kernel end: 0x{:x}", kernel_start, kernel_end);
     println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}",  multiboot_start, multiboot_end);
     println!("");
+*/
+
+    //set up guard page and map the heap pages
+    memory::init(boot_info);
 
     
-
-    
-     let mut frame_allocator = memory::AreaFrameAllocator::new(
+    //Test Remapping the kernel
+    /*
+    let mut frame_allocator = memory::AreaFrameAllocator::new(
         kernel_start as usize, kernel_end as usize, multiboot_start,
          multiboot_end, memory_map_tag.memory_areas());
+    memory::remap_the_kernel(&mut frame_allocator, boot_info);
+    */
 
-    
     //call function to test paging
     //memory::test_paging(&mut frame_allocator);
+    //frame_allocator.allocate_frame();
 
-    //test remapping the kernel
-    enable_nxe_bit();
-    enable_write_protect_bit();
-   
-    memory::remap_the_kernel(&mut frame_allocator, boot_info);
 
-    //new : try to allocate a frame -> should cause page fault as the AreaFrameAllocator uses the memory map of the Multiboot information structure, but we did not map the Multibbot structure.
-    frame_allocator.allocate_frame();
+    //Test out the allocator
+    use alloc::boxed::Box;
+    let mut heap_test = Box::new(42);
+    *heap_test -= 15;
+    let heap_test2 = Box::new("hello");
+    println!("{:?} {:?}", heap_test, heap_test2);
+
+    let mut vec_test = vec![1,2,3,4,5,6,7];
+    vec_test[3] = 42;
+    for i in &vec_test {
+        print!("{} ", i);
+    }
+    
     
     println!("It did not crash!");
 
-    //use alloc::boxed::Box;
-   //let heap_test = Box::new(42);
+    for i in 0..10000 {
+    format!("Some String");
+}
 
 
     loop{}
@@ -140,8 +157,9 @@ pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &'static str, line: u32
     loop{}
 }
 
-/*
+
 //Public constants for the heapallocator
+
 pub const HEAP_START: usize = 0o_000_001_000_000_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 
@@ -149,4 +167,3 @@ pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START,
     HEAP_START + HEAP_SIZE);
 
-*/
